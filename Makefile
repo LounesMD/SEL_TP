@@ -15,8 +15,8 @@ all: Tracee $(TARGET)
 Tracee: Tracee.c
 	$(CC) $(CFLAGS) -static -o Tracee Tracee.c
 
-$(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c
+$(TARGET): $(TARGET).c 
+	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c utilities.c
 
 clean:
 	$(RM) $(ALL)
