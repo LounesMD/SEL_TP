@@ -79,7 +79,7 @@ int get_pid(char* proc_name, char* pid_char) {
 }
 
 
-long find_add_fun (char* static_ex_name, char* fun_name) {
+long find_addr_fun (char* static_ex_name, char* fun_name) {
     // Search in the addresses of the exec name to find the fun_name address.
     char command[50] = {0};
     char* command_part[] = {"nm ", static_ex_name};
@@ -165,12 +165,12 @@ int main(int argc, char *argv[]){
     char pid_char[10];
     get_pid(argv[1], pid_char);
     tracee_pid = strtol(pid_char, NULL, 10);
-    printf("%d \n", tracee_pid );
+    // printf("%d \n", tracee_pid );
 
     printf("The pid to trace is [%d].\n", tracee_pid);
 
 
-    function_adress = find_add_fun(argv[1] , argv[2]);
+    function_adress = find_addr_fun(argv[1] , argv[2]);
     printf("The adresse of the function [%s] to trace is [%lld].\n", argv[2], function_adress);
 
 

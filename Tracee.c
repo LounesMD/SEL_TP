@@ -1,4 +1,5 @@
 #include<stdio.h>
+#include <stdlib.h>
 #include<sys/ptrace.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -29,10 +30,7 @@ int soustraction(int a , int b){
 }
 // Ce programme est celui qui sera tracé 
 int main( int argc , char * argv[]){
-    int val = argv[1];
     printf("\nChild Process ID is %d \n",getpid());
-
-
 
     for(int i = 0 ; i<100000 ; i++){
         sleep(2);
