@@ -4,6 +4,7 @@
 #include<string.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/user.h>
 
 // This challenge belongs to Leo Laffaech and Lounès Meddahi
 
@@ -150,6 +151,7 @@ long find_add_fun (char* static_ex_name, char* fun_name) {
 }
 
 
+
 int main(int argc, char *argv[]){
     // The arguments are : The name of the process, the name of the target function to replace and the name of the function to execute
     pid_t tracee_pid;
@@ -171,6 +173,14 @@ int main(int argc, char *argv[]){
 
     function_adress = find_add_fun(argv[1] , argv[2]);
     printf("The adresse of the function [%s] to replace is [%lld].\n", argv[2], function_adress);
+
+
+
+    long long target_function_adresse;
+    // target_function_adresse = find_add_fun( argv[1] , argv[3]);
+    // printf("The adresse of the target function [%s] is [%lld].\n", argv[3], target_function_adresse);
+    target_function_adresse = strtoll(argv[3] , NULL , 16);
+    printf("The adresse of the target function [%s] is [%lld].\n", argv[3], target_function_adresse);
 
     int status;
     ptrace(PTRACE_ATTACH, tracee_pid, NULL, NULL); // We are now attached to the pocess
@@ -196,6 +206,12 @@ int main(int argc, char *argv[]){
     char tab = 0xCC ; // Trap pour récupérer le contrôle du processus
 
     int p;
+    char inst[3];
+    fread( &inst[0], 1 , 1 , Tracee);
+    fread( &inst[1], 1 , 1 , Tracee);
+    fread( &inst[2], 1 , 1 , Tracee);
+
+    fseek(Tracee , function_adress , 0);
     p = fwrite(&tab , 1 , 1 ,Tracee); //We write &tab in the process memory instead of the function address to stop when the process
     fclose(Tracee);
 
@@ -209,70 +225,78 @@ int main(int argc, char *argv[]){
     struct user_regs_struct original_regs;
     struct user_regs_struct modified_regs;
 
-    ptrace(PTRACE_GETREGS , tracee_pid , NULL , original_regs ); 
-    ptrace(PTRACE_GETREGS , tracee_pid , NULL , modified_regs );
+    ptrace(PTRACE_GETREGS , tracee_pid , NULL , &original_regs ); 
+    ptrace(PTRACE_GETREGS , tracee_pid , NULL , &modified_regs );
+
     // Point n°3 : 
 
     // Ici on ne peut pas directement modifier la prochaine instruction à éxecuter (donc le registre rip) car on aurait pls pb :
     // retour de la fonction , accessibilité de la fonction à executer etc ...
     // Pour ce faire, on va faire un appel indirect en passant par le registre rax qui permet ???
 
-
-
-    // Supposons que l'écriture de la fonction dans le registre actuel a fonctionné ( appel indirect suivi d'un trap) :
-
-
-    int param;
-
-
-
-
-    // ???
-    // Dans cette partie je suis censé savoir le nombre de bloc écrit pour ensuite pouvoir mettre le trap
-    // Car on aura écrit de function_adress à function_adress + idx 
-    int indx = 0;
-
     // Là on écrit le trap qui suit l'écriture de la fonction
-    char buffer[20];
+    buffer[20];
     snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
-    FILE * Tracee = fopen( buffer , "wb"); // Here we get all the functions mentionned in the process
+    Tracee = fopen( buffer , "wb"); // Here we get all the functions mentionned in the process
     if(Tracee == NULL){
         printf("Tracee failed to open \n");
         exit(-1);
     }
 
-    int i;
-    i = fseek(Tracee , function_adress + indx, 0);
+    //// On va pouvoir écrire la fonction à executer 
+    i = fseek(Tracee , function_adress, 0); // On se place au niveau de l'ancienne fonction
     if(i != 0){
         printf("fseek failed.");
         exit(-1);
     }
-    char tab = 0xCC ; // We stock in tab the trap code
-    int p;
-    p = fwrite(&tab , 1 , 1 ,Tracee); //We write &tab in the process memory instead of the function address
+    
+    modified_regs.rip = function_adress;
+    
+    tab = 0xff; // We stock in tab the call to rax     
+    p = fwrite(&tab , 1 , 1 ,Tracee); //
+    
+    tab = 0xd0;
+    p = fwrite(&tab , 1 , 1 ,Tracee); //
+    
+    tab = 0xCC ; // We stock in tab the trap code
+    fwrite(&tab , 1 , 1 ,Tracee); //We write &tab in the process memory instead of the function address
     fclose(Tracee);
 
+    // On va definir deux paramètres de la fonction à executer
+    int a = 1;
+    int b = 2;
 
+    modified_regs.rdi = a;
+    modified_regs.rsi = b;
+    modified_regs.rax = target_function_adresse;
+
+    ptrace(PTRACE_SETREGS , tracee_pid , NULL , &modified_regs);
+    //////////////////////////////////////////////////
+
+     // fseek(Tracee , function_adress, 0);
     // On continue le processus pour executer la fonction 
     ptrace(PTRACE_CONT , tracee_pid ,  NULL , NULL);
     waitpid(tracee_pid , &status , 0); 
 
     /// Maintenant on va récupèrer le résultat de la fonction  
     struct user_regs_struct modified_regs_2;
-    ptrace(PTRACE_GETREGS , tracee_pid , NULL , modified_regs_2);
-
-
-
-
-
-
+    ptrace(PTRACE_GETREGS , tracee_pid , NULL , &modified_regs_2);
+    printf("La valeur renvoie pour l'exectution de la fonction est %lld \n ",modified_regs_2.rax);
 
 
     // Point n°6 : Restauration de la valeur initiale des registres
-    ptrace(PTRACE_SETREGS , tracee_pid , NULL , original_regs );
+    fseek(Tracee , function_adress, 0);
+    for (int i = 0; i<3 ; i++){
+        fwrite(inst+i , 1 , 1 ,Tracee);
+    }
+
+    original_regs.rip = function_adress;
+
+    ptrace(PTRACE_SETREGS , tracee_pid , NULL , &original_regs );
 
     // Redémarrage du processus 
     ptrace(PTRACE_DETACH , tracee_pid , NULL , NULL);
+    waitpid(tracee_pid , &status , 0); 
 
     return 0;
     }
