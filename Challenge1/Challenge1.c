@@ -5,7 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include "utilities.h"
+#include "../utilities.h"
 
 // This challenge belongs to Leo Laffeach and Lounès Meddahi
 int main(int argc, char *argv[]){

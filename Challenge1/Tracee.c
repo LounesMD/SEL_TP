@@ -5,18 +5,12 @@
 #include <sys/prctl.h>
 #include <stdio.h>
 
-
-
 int somme(int a , int b){
     return a+b;
 }
 
 int soustraction(int a , int b){
     return a-b;
-}
-
-int toto(int a , int b){
-    return 2*(a+b);
 }
 
 int main( int argc , char * argv[]){

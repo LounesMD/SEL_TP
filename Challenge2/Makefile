@@ -4,7 +4,7 @@
 CC = gcc
 CFLAGS = -g
 
-TARGET = Challenge1
+TARGET = Challenge2
 
 ALL = Tracee $(TARGET)
 
@@ -23,12 +23,10 @@ clean:
 
 #============================================
 # Test
+ARG1 = 1
+ARG2 = 2
 
-Challenge1_Test_soustraction:
-	gnome-terminal -- ./Tracee;
-	./Challenge1 Tracee soustraction
-	
 
-Challenge1_Test_somme:
+Challenge2_Test:
 	gnome-terminal -- ./Tracee;
-	./Challenge1 Tracee somme
+	./Challenge2 Tracee somme toto -arg1 $(ARG1) -arg2 $(ARG2)

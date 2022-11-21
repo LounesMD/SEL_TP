@@ -1,5 +1,5 @@
 # Makefile for:
-#	TP SEL Challenge 1
+#	TP SEL
 #============================================
 CC = gcc
 CFLAGS = -g
@@ -16,7 +16,7 @@ Tracee: Tracee.c
 	$(CC) $(CFLAGS) -static -o Tracee Tracee.c
 
 $(TARGET): $(TARGET).c 
-	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c ../utilities.c
+	$(CC) $(CFLAGS) -o $(TARGET) $(TARGET).c utilities.c
 
 clean:
 	$(RM) $(ALL)
@@ -25,10 +25,7 @@ clean:
 # Test
 
 Challenge1_Test_soustraction:
-	gnome-terminal -- ./Tracee;
 	./Challenge1 Tracee soustraction
-	
 
 Challenge1_Test_somme:
-	gnome-terminal -- ./Tracee;
 	./Challenge1 Tracee somme
