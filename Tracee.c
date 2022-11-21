@@ -15,7 +15,7 @@ int soustraction(int a , int b){
     return a-b;
 }
 
-int somme_bis(int a , int b){
+int toto(int a , int b){
     return 2*(a+b);
 }
 
