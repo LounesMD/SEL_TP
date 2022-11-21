@@ -169,7 +169,7 @@ int main(int argc, char *argv[]){
 
     char buffer[20];
     snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
-    FILE * Tracee = fopen( buffer , "wb"); // Here we get all the functions mentionned in the process
+    FILE * Tracee = fopen( buffer , "r+"); // Here we get all the functions mentionned in the process
     if(Tracee == NULL){
         printf("Tracee failed to open \n");
         exit(-1);
@@ -186,10 +186,11 @@ int main(int argc, char *argv[]){
     char tab = 0xCC ; // Trap pour récupérer le contrôle du processus
 
     int p;
-    char *inst[3];
-    fread( &inst[0], 1 , 1 , Tracee);
-    fread( &inst[1], 1 , 1 , Tracee);
-    fread( &inst[2], 1 , 1 , Tracee);
+    char inst[3];
+    fread( inst, 1 , 3 , Tracee);
+    printf(" %x \n" , (unsigned char)inst[0]);
+    printf(" %x \n" , (unsigned char)inst[1]);
+    printf(" %x \n" , (unsigned char)inst[2]);
 
     fseek(Tracee , function_adress , 0);
     p = fwrite(&tab , 1 , 1 ,Tracee); //We write &tab in the process memory instead of the function address to stop when the process
@@ -243,10 +244,12 @@ int main(int argc, char *argv[]){
     
     tab = 0xCC ; // We stock in tab the trap code
     fwrite(&tab , 1 , 1 ,Tracee); //We write &tab in the process memory instead of the function address
-    fclose(Tracee);
+    
+    // fclose(Tracee);
+
     // On va definir deux paramètres de la fonction à executer
     int a = 1;
-    int b = 2;
+    int b = 1;
 
     modified_regs.rdi = a;
     modified_regs.rsi = b;
@@ -258,9 +261,7 @@ int main(int argc, char *argv[]){
     fseek(Tracee , function_adress, 0);
     // On continue le processus pour executer la fonction 
     ptrace(PTRACE_CONT , tracee_pid ,  NULL , NULL);
-    int status2;
-    wait(&status2);
-    // waitpid(tracee_pid , &status , 0); 
+    waitpid(tracee_pid , &status , 0); 
 
     /// Maintenant on va récupèrer le résultat de la fonction  
     struct user_regs_struct modified_regs_2;
@@ -270,17 +271,22 @@ int main(int argc, char *argv[]){
     original_regs.rip = function_adress;
 
     // Point n°6 : Restauration de la valeur initiale des registres
-    fseek(Tracee , function_adress, 0);
-    fwrite(&inst[0] , 1 , 1 ,Tracee);
-    fwrite(&inst[1] , 1 , 1 ,Tracee);
-    fwrite(&inst[2] , 1 , 1 ,Tracee);   
+    i = fseek(Tracee , function_adress, 0); // On se place au niveau de l'ancienne fonction
+    if(i != 0){
+        printf("fseek failed.");
+        exit(-1);
+    }
+    fwrite(inst , 1 , 3 ,Tracee);
+    // fwrite(&inst[1] , 1 , 1 ,Tracee);
+    // fwrite(&inst[2] , 1 , 1 ,Tracee);   
     fclose(Tracee);
-
 
     ptrace(PTRACE_SETREGS , tracee_pid , 0 , &original_regs );
 
+    getchar();
+
     // Redémarrage du processus 
-    ptrace(PTRACE_CONT , tracee_pid , NULL , NULL);
+    ptrace(PTRACE_DETACH , tracee_pid , NULL , NULL);
 
 
     return 0;
