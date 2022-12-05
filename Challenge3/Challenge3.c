@@ -5,6 +5,9 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 // This challenge belongs to Leo Laffaech and Lounès Meddahi
 
@@ -132,40 +135,35 @@ long function_offset(char* pid, char* function_name) {
 
 
 
+
 int main(int argc, char *argv[]){
     // The arguments are : 
     //  1) The name of the process
     //  2) The name of the target function to replace
     //  3) The name of the function to execute
     //  4) Size of the cache code
-
-    pid_t tracee_pid;
-    long function_adress;
-    
-
     if(argc != 5){
         printf("Not enough arguments");
         exit(1);
     }
-
+    pid_t tracee_pid;
+    long function_adress;
     char pid_char[10];
+    long target_function_adresse;    
+    int cacheSize;
+
+
     get_pid(argv[1], pid_char);
     tracee_pid = strtol(pid_char, NULL, 10);
-    printf("%d \n", tracee_pid );
-
     printf("The pid to trace is [%d].\n", tracee_pid);
-
 
     function_adress = function_offset(pid_char , argv[2]);
     printf("The adresse of the function [%s] to replace is [%ld].\n", argv[2], function_adress);
 
-
-
-    long target_function_adresse;
     target_function_adresse = function_offset(pid_char , argv[3]);
     printf("The adresse of the target function [%s] is [%ld].\n", argv[3], target_function_adresse);
 
-    int cacheSize = atoi(arbv[4])
+    cacheSize = atoi(argv[4]);
     
 
     int status;
@@ -179,36 +177,134 @@ int main(int argc, char *argv[]){
     // Etape 1 :
     // On va écrire une intruction trap au niveau d'un fonction foo qu'on sait être appelée (chall 1)
     // Un fois le processus trappé, on va relancer le processus pour qu'il se bloque une fois le trap rencontré
+
+    char buffer[20];
+    snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
+    FILE * Tracee = fopen( buffer , "r+"); // Here we get all the functions mentionned in the process
+    if(Tracee == NULL){
+        printf("Tracee failed to open \n");
+        exit(-1);
+    }
+
+    // Here we put the read pointer on the address of the function
+    int i = fseek(Tracee , function_adress , 0);
+    if(i != 0){
+        printf("fseek failed.");
+        exit(-1);
+    }
+
+
+    char tab = 0xCC ;
+    char sauvegarde1[1];    
+    fread( sauvegarde1, 1 , 1 , Tracee); // Avant d'écrire le trap on va faire une sauvegarde
+    fseek(Tracee , function_adress , 0); // On se place au niveau de la fonction appelée
+    fwrite(&tab , 1 , 1 ,Tracee); // On écrit le trap
+    fclose(Tracee);
+
+    ptrace(PTRACE_CONT , tracee_pid, NULL, NULL); // On relance le processus attaché
+    waitpid(tracee_pid , &status , 0); 
+
+
+    struct user_regs_struct original_regs;
+    struct user_regs_struct modified_regs;
+
+    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &original_regs ); 
+    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &modified_regs );
+
     
-    // Etape 2 :
-    // On va modifier l'instruction à executer (pour y mettre le posix_memalign)
-    // On va donner en paramètres :
-    // 1) L'adresse du pointeur de la fonction foo dans regs.rdi
-    // 2) alignment dans regs.rsi
-    // 3) le nombre d'octets à allouer dans regs.rdx
-    // On met un trap ensuite comme ça on va pouvoir récupérer le resultat (donc la valeur du pointeur )    
-    // On fait appel à mprotect pour pouvoir modifier et executer la zone mémoire eu grâce à posix_memalign (Challenge 2)
     
-    // Etape 3 (challenge 3):
-    // On va écrire le code executable* 
-    // Pour ce faire, on va écrire dans un fichier une fonction, récupérer son code assembleur (avec objdump -d Interm) :
-    // 1129:       f3 0f 1e fa             endbr64                  0xf30f1efa
-    // 112d:       55                      push   %rbp              0x55
-    // 112e:       48 89 e5                mov    %rsp,%rbp         0x4889e5
-    // 1131:       89 7d fc                mov    %edi,-0x4(%rbp)   0x897dfc
-    // 1134:       89 75 f8                mov    %esi,-0x8(%rbp)   0x8975f8
-    // 1137:       8b 55 fc                mov    -0x4(%rbp),%edx   0x8b55fc
-    // 113a:       8b 45 f8                mov    -0x8(%rbp),%eax   0x8b45f8
-    // 113d:       01 d0                   add    %edx,%eax         0x01d0
-    // 113f:       5d                      pop    %rbp              0x5d
-    // 1140:       c3                      retq                     0xc3
+    
+    // ECRIRE DU L'INSTRUCTION POSIX_MEMALIGN à exectuer
+    long posix_memalign_adress = function_offset(pid_char , "posix_memalign"); 
 
-    // Etape 4 :
-    // On relance le processus pour qu'il s'execute jusqu'au trap
-    // On retire toutes les instructions écrites (memalign, etc) et on remet les instructions initiales (Challenge 2)
-    // On remet le registre original
+    modified_regs.rax = posix_memalign_adress;
+    modified_regs.rdi = original_regs.rdi; // On garde le même premier paramètre car c'était le pointeur de la fonction somme
+    modified_regs.rsi = 0; // Que dois-je mettre comme deuxième param ?
+    modified_regs.rdx = cacheSize; // 
+
+    ptrace(PTRACE_SETREGS , tracee_pid , NULL , NULL);
 
 
+
+
+
+    // EXECUTION DU POSIX_MEMALIGN
+    ptrace(PTRACE_CONT, tracee_pid, NULL, NULL);
+    waitpid(tracee_pid , &status , 0); 
+
+    // RECUPERATION DE L'ADRESSE SUR LA QUELLE ON VA ECRIRE
+    struct user_regs_struct modified_regs_3;
+    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &modified_regs_3 );
+    long adresse_to_write = modified_regs_3.rdi; // On aura stocker l'espace d'adressage créé par le memalign dans son premier paramètre
+
+
+
+
+
+    // POUR LE MPROTECT
+    struct user_regs_struct modified_regs_2;
+    ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs_2);
+
+
+    // Puis on refait la même chose avec mprotect
+    long mprotect_adress = function_offset(pid_char , "mprotect"); 
+    modified_regs_2.rax = mprotect_adress;
+
+    modified_regs_2.rdi = adresse_to_write;
+    modified_regs_2.rsi = cacheSize; // 
+    modified_regs_2.rdx = PROT_EXEC | PROT_READ | PROT_WRITE;
+
+    ptrace(PTRACE_SETREGS, tracee_pid, 0, &modified_regs_2);
+    ptrace(PTRACE_CONT, tracee_pid, NULL, NULL);
+    waitpid(tracee_pid , &status , 0); 
+
+
+
+    unsigned char inst[24] = {0xf3 , 0x0f ,  0x1e , 0xfa ,
+                              0x55 ,
+                              0x48 , 0x89 , 0xe5 ,
+                              0x89 , 0x7d , 0xfc ,
+                              0x89 , 0x75 , 0xf8 ,
+                              0x8b , 0x55  , 0xfc ,
+                              0x8b , 0x45 , 0xf8 ,
+                              0x01 , 0xd0 ,
+                              0x5d ,
+                              0xc3 };
+
+    // Ecriture du code ci-dessus dans le mémoire du processus tracé 
+
+    // On ouvre la mémoire et on se place au niveau de ....
+    buffer[20];
+    snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
+    Tracee = fopen( buffer , "wb");
+    if(Tracee == NULL){
+        printf("Tracee failed to open \n");
+        exit(-1);
+    }
+
+    i = fseek(Tracee , adresse_to_write, 0); 
+    if(i != 0){
+        printf("fseek failed.");
+        exit(-1);
+    }
+
+    // On écrit toutes les instructions de la fonction somme du ficher Interm.c
+    // A noter qu'on a pas besoin de faire un read et de sauvegarder en mémoire ce qu'il y'avait avant car il n'y avait rien (d'intérréssant en tout cas)
+    fwrite(inst , 1 , 24 ,Tracee);
+
+    
+    fseek(Tracee , function_adress , 0); // On se place au niveau de la fonction appelée
+    fwrite(&sauvegarde1 , 1 , 1 ,Tracee); // On écrit le trap
+
+
+    fclose(Tracee);
+
+    
+    // On remet le registre de départ
+    ptrace(PTRACE_SETREGS, tracee_pid, 0, &original_regs);
+
+    // On se détache
+    ptrace(PTRACE_DETACH, tracee_pid, NULL, NULL);
 
     return 0;
     }   
