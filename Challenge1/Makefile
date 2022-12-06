@@ -26,9 +26,11 @@ clean:
 
 Challenge1_Test_soustraction:
 	gnome-terminal -- ./Tracee;
+	sleep 5s;
 	./Challenge1 Tracee soustraction
 	
 
 Challenge1_Test_somme:
 	gnome-terminal -- ./Tracee;
+	sleep 5s;
 	./Challenge1 Tracee somme

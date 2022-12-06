@@ -29,4 +29,5 @@ ARG2 = 2
 
 Challenge2_Test:
 	gnome-terminal -- ./Tracee;
+	sleep 5s;
 	./Challenge2 Tracee somme toto -arg1 $(ARG1) -arg2 $(ARG2)

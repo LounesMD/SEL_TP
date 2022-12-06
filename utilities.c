@@ -30,9 +30,10 @@ int command_writer(char* command, int length_command, char** command_part, int n
 }
 
 
-// Warning : take care to kill all Tracee running if there is some (This function will take the first wich can be not the good one)
+// Warning : take care to kill all Tracee running if there is some 
+// (This function will take the first which can be a wrong one)
 int get_pid(char* proc_name, char* pid_char) {
-    // Get the pid of the first processus using `pgreg`.
+    // Get the pid of the first processus using `pgrep`.
     char command[100] = {0};
     char* command_part[] = {"pgrep ", proc_name};
     command_writer(command, 100, command_part, 2);
@@ -52,7 +53,7 @@ int get_pid(char* proc_name, char* pid_char) {
         end = fscanf(stream, "%c", &line);
         switch (line)
         {
-        case '\0':
+        case '\0': // If there is none
             printf("Error Processus: no such processus is running.\n");
             exit(-1);
             break;
@@ -127,10 +128,12 @@ long find_addr_fun (char* static_ex_name, char* fun_name) {
             break;
 
         default:
+            // We get the address of the function before verifying if it is the correct one
             if (space_count == 0){
                 addr[index_addr] = line;
                 index_addr ++;
             }
+            // We verify if the fun_name is the correct one.
             if (space_count == 2 && same_fun) {
                 if (line == fun_name[index_fun]) {
                     index_fun ++;
