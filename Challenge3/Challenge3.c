@@ -81,8 +81,6 @@ int get_pid(char* proc_name, char* pid_char) {
     return 0;
 }
 
-// We want a function that takes as a param the pid of a process, the name of a function of this process and returns the adress offset of this function in this process
-// We will use the ptrace function to read the memory of the process and the nm function to get the offset of the function in the binary
 long function_offset(char* pid, char* function_name) {
     // Get the offset of the function in the binary.
     char command[100] = {0};
@@ -140,16 +138,14 @@ int main(int argc, char *argv[]){
     // The arguments are : 
     //  1) The name of the process
     //  2) The name of the target function to replace
-    //  3) The name of the function to execute
-    //  4) Size of the cache code
-    if(argc != 5){
+    //  3) Size of the cache code
+    if(argc != 4){
         printf("Not enough arguments");
         exit(1);
     }
     pid_t tracee_pid;
     long function_adress;
     char pid_char[10];
-    long target_function_adresse;    
     int cacheSize;
 
 
@@ -160,23 +156,12 @@ int main(int argc, char *argv[]){
     function_adress = function_offset(pid_char , argv[2]);
     printf("The adresse of the function [%s] to replace is [%ld].\n", argv[2], function_adress);
 
-    target_function_adresse = function_offset(pid_char , argv[3]);
-    printf("The adresse of the target function [%s] is [%ld].\n", argv[3], target_function_adresse);
-
-    cacheSize = atoi(argv[4]);
-    
+    cacheSize = atoi(argv[4]);    
 
     int status;
     ptrace(PTRACE_ATTACH, tracee_pid, NULL, NULL); // We are now attached to the pocess
     waitpid(tracee_pid , &status , 0);
 
-
-
-    // Maintenant que nous sommes attachés au processus on va récupèrer l'accès à sa mémoire
-
-    // Etape 1 :
-    // On va écrire une intruction trap au niveau d'un fonction foo qu'on sait être appelée (chall 1)
-    // Un fois le processus trappé, on va relancer le processus pour qu'il se bloque une fois le trap rencontré
 
     char buffer[20];
     snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
@@ -186,7 +171,7 @@ int main(int argc, char *argv[]){
         exit(-1);
     }
 
-    // Here we put the read pointer on the address of the function
+    // Here we put the read pointer on the address of the function to replace
     int i = fseek(Tracee , function_adress , 0);
     if(i != 0){
         printf("fseek failed.");
@@ -194,59 +179,52 @@ int main(int argc, char *argv[]){
     }
 
 
+
     char tab = 0xCC ;
     char sauvegarde1[1];    
-    fread( sauvegarde1, 1 , 1 , Tracee); // Avant d'écrire le trap on va faire une sauvegarde
-    fseek(Tracee , function_adress , 0); // On se place au niveau de la fonction appelée
-    fwrite(&tab , 1 , 1 ,Tracee); // On écrit le trap
+    fread( sauvegarde1, 1 , 1 , Tracee); // Before writing the trap, we make a backup of the line
+    fseek(Tracee , function_adress , 0);
+    fwrite(&tab , 1 , 1 ,Tracee); // We write the trap to stop the traced process
     fclose(Tracee);
 
-    ptrace(PTRACE_CONT , tracee_pid, NULL, NULL); // On relance le processus attaché
+    ptrace(PTRACE_CONT , tracee_pid, NULL, NULL); // We restart the process
     waitpid(tracee_pid , &status , 0); 
 
 
     struct user_regs_struct original_regs;
     struct user_regs_struct modified_regs;
 
-    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &original_regs ); 
-    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &modified_regs );
+    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &original_regs ); // We keep a backup of the original registers 
+    ptrace(PTRACE_GETREGS , tracee_pid , 0 , &modified_regs ); // And we take an other copy in order to call posix_memalign and mprotect
 
     
     
     
-    // ECRIRE DU L'INSTRUCTION POSIX_MEMALIGN à exectuer
+    // Because the traced process is compiled using the -static command, we can find the adresse of posix_memalign in order to launch it
     long posix_memalign_adress = function_offset(pid_char , "posix_memalign"); 
 
     modified_regs.rax = posix_memalign_adress;
-    modified_regs.rdi = original_regs.rdi; // On garde le même premier paramètre car c'était le pointeur de la fonction somme
-    modified_regs.rsi = 0; // Que dois-je mettre comme deuxième param ?
-    modified_regs.rdx = cacheSize; // 
+    modified_regs.rdi = original_regs.rdi; // We keep the original parameter which is already a pointer
+    modified_regs.rsi = 0; // We use 0 for the alignement
+    modified_regs.rdx = cacheSize; // And the last parameter for the cachesize
 
     ptrace(PTRACE_SETREGS , tracee_pid , NULL , NULL);
 
 
-
-
-
-    // EXECUTION DU POSIX_MEMALIGN
+    // We relaunch the traced process to creat a memory space (posix_memalign) with the new registers
     ptrace(PTRACE_CONT, tracee_pid, NULL, NULL);
     waitpid(tracee_pid , &status , 0); 
 
-    // RECUPERATION DE L'ADRESSE SUR LA QUELLE ON VA ECRIRE
+    // Now, we can use mprotect to be able to read/write/exec the function that we are going to write
     struct user_regs_struct modified_regs_3;
     ptrace(PTRACE_GETREGS , tracee_pid , 0 , &modified_regs_3 );
-    long adresse_to_write = modified_regs_3.rdi; // On aura stocker l'espace d'adressage créé par le memalign dans son premier paramètre
+    long adresse_to_write = modified_regs_3.rdi; // In the first parameter of posix_memalign, we will have the adress to write
 
 
-
-
-
-    // POUR LE MPROTECT
+    // We use a new register in order to execute the mprotect
     struct user_regs_struct modified_regs_2;
     ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs_2);
 
-
-    // Puis on refait la même chose avec mprotect
     long mprotect_adress = function_offset(pid_char , "mprotect"); 
     modified_regs_2.rax = mprotect_adress;
 
@@ -254,7 +232,7 @@ int main(int argc, char *argv[]){
     modified_regs_2.rsi = cacheSize; // 
     modified_regs_2.rdx = PROT_EXEC | PROT_READ | PROT_WRITE;
 
-    ptrace(PTRACE_SETREGS, tracee_pid, 0, &modified_regs_2);
+    ptrace(PTRACE_SETREGS, tracee_pid, 0, &modified_regs_2); // We can now set the register and relaunch the process
     ptrace(PTRACE_CONT, tracee_pid, NULL, NULL);
     waitpid(tracee_pid , &status , 0); 
 
@@ -271,9 +249,8 @@ int main(int argc, char *argv[]){
                               0x5d ,
                               0xc3 };
 
-    // Ecriture du code ci-dessus dans le mémoire du processus tracé 
-
-    // On ouvre la mémoire et on se place au niveau de ....
+    // The above instructions can be found by running : objdump -d Interm
+    // Now, we open the memory in order to write those instructions
     buffer[20];
     snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
     Tracee = fopen( buffer , "wb");
@@ -288,22 +265,18 @@ int main(int argc, char *argv[]){
         exit(-1);
     }
 
-    // On écrit toutes les instructions de la fonction somme du ficher Interm.c
-    // A noter qu'on a pas besoin de faire un read et de sauvegarder en mémoire ce qu'il y'avait avant car il n'y avait rien (d'intérréssant en tout cas)
     fwrite(inst , 1 , 24 ,Tracee);
 
     
-    fseek(Tracee , function_adress , 0); // On se place au niveau de la fonction appelée
-    fwrite(&sauvegarde1 , 1 , 1 ,Tracee); // On écrit le trap
+    fseek(Tracee , function_adress , 0);  
+    fwrite(&sauvegarde1 , 1 , 1 ,Tracee); // Now, we can remove the trap instruction and replace it by the backup
 
 
     fclose(Tracee);
 
     
-    // On remet le registre de départ
+    // We hand over the original registers
     ptrace(PTRACE_SETREGS, tracee_pid, 0, &original_regs);
-
-    // On se détache
     ptrace(PTRACE_DETACH, tracee_pid, NULL, NULL);
 
     return 0;
