@@ -1,11 +1,11 @@
 # Makefile for:
-#	TP SEL Challenge 2
+#	TP SEL Challenge 3
 #	Léo Laffeach and Lounès Meddahi
 #============================================
 CC = gcc
 CFLAGS = -g
 
-TARGET = Challenge2
+TARGET = Challenge3
 
 ALL = Tracee $(TARGET)
 
@@ -23,12 +23,14 @@ clean:
 	$(RM) $(ALL)
 
 #============================================
+Get_Hexa_Somme:
+	objdump -d Interm
+
+#============================================
 # Test
-ARG1 = 1
-ARG2 = 2
 TIME = 5s
 
-Challenge2_Test:
+Challenge3_Test:
 	gnome-terminal -- ./Tracee;
 	sleep $(TIME);
-	./Challenge2 Tracee somme toto -arg1 $(ARG1) -arg2 $(ARG2)
+	./Challenge2 Tracee somme

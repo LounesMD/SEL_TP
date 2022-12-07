@@ -10,12 +10,17 @@
 
 #define ARG1 1;
 #define ARG2 1;
-// This challenge belongs to Leo Laffaech and Lounès Meddahi
 
+// This challenge belongs to Léo Laffeach and Lounès Meddahi.
 int main(int argc, char *argv[]){
-    // The arguments are : The name of the process, the name of the target function to replace and the name of the function to execute    
+    /* 
+        Arguments are: 
+         [1] The name of the process;
+         [2] the name of the target function to replace;
+         [3] the name of the function to execute. 
+    */
     if(argc < 4){
-        printf("Not enough arguments");
+        printf("Error: Not enough arguments.\n");
         exit(1);
     }
 
@@ -44,8 +49,8 @@ int main(int argc, char *argv[]){
     pid_t tracee_pid = strtol(pid_char, NULL, 10);
     printf("%d \n", tracee_pid );
 
-    printf("The process trace is [%s].\n", argv[1]);
-    printf("The pid to trace is [%d].\n", tracee_pid);
+    printf("The process traced is [%s].\n", argv[1]);
+    printf("His pid is [%d].\n", tracee_pid);
 
     // Get the addresses of the functions
     long long function_adress = find_addr_fun(argv[1], argv[2]);
@@ -57,22 +62,21 @@ int main(int argc, char *argv[]){
     ptrace(PTRACE_ATTACH, tracee_pid, NULL, NULL); // We are now attached to the pocess
     waitpid(tracee_pid , &status , 0);
 
-
     char buffer[20];
     snprintf(buffer, 20, "/proc/%d/mem",tracee_pid);
     FILE* traced_process_mem = fopen( buffer , "r+"); // Here we get all the functions mentionned in the process
     if(traced_process_mem == NULL){
-        printf("traced_process_mem failed to open.\n");
+        printf("Error: %s failed to open.\n", argv[1]);
         exit(-1);
     }
 
     // Here we put the read pointer on the address of the function
     if(fseek(traced_process_mem , function_adress , 0) != 0){
-        printf("fseek failed.\n");
+        printf("Error: fseek failed.\n");
         exit(-1);
     }
     
-    char trap_instru = 0xCC ; // Trap pour récupérer le contrôle du processus
+    char trap_instru = 0xCC ;
 
     char original_instru[3];
     for (int i = 0; i < 3; i++) {
@@ -80,11 +84,13 @@ int main(int argc, char *argv[]){
     }
 
     fseek(traced_process_mem , function_adress , 0);
-    fwrite(&trap_instru, 1, 1, traced_process_mem); //We write &tab in the process memory instead of the function address to stop when the process
+    //We write &tab in the process memory instead of the function address to stop when the process
+    fwrite(&trap_instru, 1, 1, traced_process_mem); 
     fclose(traced_process_mem);
     traced_process_mem = NULL;
 
-    ptrace(PTRACE_CONT, tracee_pid, NULL, NULL); // We use to stop the process when the process is traped while keeping the control
+    // We use to stop the process when the process is traped while keeping the control
+    ptrace(PTRACE_CONT, tracee_pid, NULL, NULL); 
     waitpid(tracee_pid, &status, 0); 
 
     //  Now we can take the registers.
@@ -100,13 +106,13 @@ int main(int argc, char *argv[]){
     
     traced_process_mem = fopen( buffer , "r+"); // Here we get all the functions mentionned in the process
     if(traced_process_mem == NULL){
-        printf("traced_process_mem failed to open.\n");
+        printf("Error: %s failed to open.\n", argv[1]);
         exit(-1);
     }
 
     // We placed ourself at the functione_address.
-    if(fseek(traced_process_mem, function_adress, 0)){
-        printf("fseek failed.\n");
+    if(fseek(traced_process_mem, function_adress, 0) != 0){
+        printf("Error: fseek failed.\n");
         exit(-1);
     }
     
@@ -138,10 +144,10 @@ int main(int argc, char *argv[]){
 
     traced_process_mem = fopen( buffer , "r+"); // Here we get all the functions mentionned in the process
     if(traced_process_mem == NULL){
-        printf("traced_process_mem failed to open.\n");
+        printf("Error: %s failed to open.\n", argv[1]);
         exit(-1);
     }
-    // Restore the original registers.
+    // Restore the process to his original state.
     fseek(traced_process_mem, function_adress, 0);
     for (int i = 0; i < 3; i++){
         fwrite(original_instru + i, 1, 1, traced_process_mem);

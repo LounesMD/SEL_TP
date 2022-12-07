@@ -1,5 +1,6 @@
 # Makefile for:
 #	TP SEL Challenge 1
+#	Léo Laffeach and Lounès Meddahi
 #============================================
 CC = gcc
 CFLAGS = -g
@@ -23,14 +24,15 @@ clean:
 
 #============================================
 # Test
+TIME = 5s
 
 Challenge1_Test_soustraction:
 	gnome-terminal -- ./Tracee;
-	sleep 5s;
+	sleep $(TIME);
 	./Challenge1 Tracee soustraction
 	
 
 Challenge1_Test_somme:
 	gnome-terminal -- ./Tracee;
-	sleep 5s;
+	sleep $(TIME);
 	./Challenge1 Tracee somme
