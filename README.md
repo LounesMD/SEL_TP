@@ -3,6 +3,14 @@ Made by Léo Laffeach and Lounès Meddahi
 
 ### utilities
     utilities.c is a file with four functions to help with getting the pid or the function address with only the name of the process or the function.
+    - command_writer: 
+        concatenate the command_part into command
+    - get_pid:
+        get the pid of a process given his name, using pgrep command
+    - find_addr_fun:
+        return the address of a function in a process given the name of the process and the function
+    - function_offset:
+        return the address of a function in a process given his pid and the function name.
 
 ## Challenge 1:
     The code for the first challenge is in the folder Challenge1
