@@ -156,3 +156,53 @@ long find_addr_fun (char* static_ex_name, char* fun_name) {
 
     return strtoll(addr, NULL, 16);
 }
+
+long function_offset(char* pid, char* function_name) {
+    // Get the offset of the function in the binary.
+    char command[100] = {0};
+    char* command_part[] = {"nm -n /proc/", pid, "/exe | grep ", function_name};
+    command_writer(command, 100, command_part, 4);
+
+    FILE * stream = NULL;
+    stream = popen(command, "r");
+    if (!stream) {
+        printf("Error open.\n");
+        exit(-1);
+    }
+
+    char line;
+    int end;
+    int offset_obtain = 0;
+    int index = 0;
+    char offset_char[100] = {0};
+    do {
+        end = fscanf(stream, "%c", &line);
+        switch (line)
+        {
+        case '\0':
+            printf("Error Function: no such function is running.\n");
+            exit(-1);
+            break;
+        
+        case '\n':
+            offset_obtain = 1;
+            offset_char[index] = '\0';
+            break;
+
+        default:
+            offset_char[index] = line;
+            index ++;
+        }
+
+    } while (end != EOF && !(offset_obtain));
+    pclose(stream);
+
+    if (!(offset_obtain)) {
+        printf("Error offset: No offset obtain.\n");
+        exit(-1);
+    }
+
+    long offset = strtol(offset_char, NULL, 16);
+
+    return offset;
+}
