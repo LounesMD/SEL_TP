@@ -71,7 +71,7 @@ Else do
     
 and after some time, do
 
-    ./Challenge3 Tracee somme
+    ./Challenge3 Tracee somme 24
 
 
 It does not work and we think that we know why. When you run the above commands, the traced process, Tracee, executes a trap after the execution of `posix_memalign` `mprotect` instead of resuming its initial execution. The reason is because when we write the first trap, then we execute `posix_memalign` and `mprotect` and finally we restaure the overwritten instruction by the trap. However, the process executes the loop again and executes the trap instead of the restored instruction.
