@@ -75,3 +75,28 @@ and after some time, do
 
 
 It does not work and we think that we know why. When you run the above commands, the traced process, Tracee, executes a trap after the execution of `posix_memalign` `mprotect` instead of resuming its initial execution. The reason is because when we write the first trap, then we execute `posix_memalign` and `mprotect` and finally we restaure the overwritten instruction by the trap. However, the process executes the loop again and executes the trap instead of the restored instruction.
+
+## Project structure
+Our project has the following structure :
+
+```
+.
+├── Challenge1
+│   ├── Challenge1.c
+│   ├── Makefile
+│   └── Tracee.c
+├── Challenge2
+│   ├── Challenge2.c
+│   ├── Makefile
+│   └── Tracee.c
+├── Challenge3
+│   ├── Challenge3.c
+│   ├── Interm.c
+│   ├── Makefile
+│   └── Tracee.c
+├── README.md
+├── utilities.c
+└── utilities.h
+
+3 directories, 13 files
+```
