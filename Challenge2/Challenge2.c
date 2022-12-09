@@ -118,7 +118,7 @@ int main(int argc, char *argv[]){
     
     modified_regs.rip = function_adress;
 
-    char indirect_call_instru[2] = {0xff, 0xd0}; // We stock in tab the call to rax    
+    char indirect_call_instru[2] = {0xff, 0xd0}; // We stock the call to rax    
     fwrite(&indirect_call_instru[0], 1, 1, traced_process_mem);
     fwrite(&indirect_call_instru[1], 1, 1, traced_process_mem);
     
