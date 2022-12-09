@@ -33,4 +33,4 @@ TIME = 5s
 Challenge3_Test:
 	gnome-terminal -- ./Tracee;
 	sleep $(TIME);
-	./Challenge2 Tracee somme
+	./Challenge3 Tracee somme
