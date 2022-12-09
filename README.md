@@ -74,7 +74,10 @@ and after some time, do
     ./Challenge3 Tracee somme 24
 
 
-It does not work and we think that we know why. When you run the above commands, the traced process, Tracee, executes a trap after the execution of `posix_memalign` `mprotect` instead of resuming its initial execution. The reason is because when we write the first trap, then we execute `posix_memalign` and `mprotect` and finally we restaure the overwritten instruction by the trap. However, the process executes the loop again and executes the trap instead of the restored instruction.
+It does not work. The fourth fseek return -1 while it should return 0. 
+It can be caused by the fact that we use `user_regs_struct` as the type for register,
+but `posix_memalign` need a [void**] for is first parameter, while `mprotect` need a [void*].
+But we may not be able to unreference the pointer because `user_regs_struct.rdi` has type [unsigned long long].
 
 ## Project structure
 Our project has the following structure :
