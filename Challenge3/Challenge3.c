@@ -93,13 +93,14 @@ int main(int argc, char *argv[]){
     waitpid(tracee_pid, &status, 0);
 
     struct user_regs_struct original_regs;
-    struct user_regs_struct modified_regs;
-
     ptrace(PTRACE_GETREGS, tracee_pid, 0, &original_regs); // We keep a backup of the original registers 
-    ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs); // And we take an other copy in order to call posix_memalign and mprotect
 
+    // And we take an other copy in order to call posix_memalign
+    struct user_regs_struct modified_regs;
+    ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs); 
     
-    // Because the traced process is compiled using the -static command, we can find the address of posix_memalign in order to launch it
+    // Because the traced process is compiled using the -static command, 
+    // we can find the address of posix_memalign in order to launch it
     long posix_memalign_address = function_offset(pid_char, "posix_memalign"); 
 
     modified_regs.rax = posix_memalign_address;
@@ -107,7 +108,7 @@ int main(int argc, char *argv[]){
     modified_regs.rsi = 0; // We use 0 for the alignement
     modified_regs.rdx = cacheSize; // And the last parameter for the cachesize
 
-    ptrace(PTRACE_SETREGS, tracee_pid, NULL, NULL);
+    ptrace(PTRACE_SETREGS, tracee_pid, 0, &modified_regs);
 
     char indirect_call_instru[2] = {0xff, 0xd0};
     
@@ -135,50 +136,31 @@ int main(int argc, char *argv[]){
     waitpid(tracee_pid, &status, 0); 
 
     // Now, we can use mprotect to be able to read/write/exec the function that we are going to write
-    struct user_regs_struct modified_regs_3;
-    ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs_3);
-
-    printf("Value of rax after posix_memalign [%lld]\n", modified_regs_3.rax);
-
-    long address_to_write = modified_regs_3.rdi; // In the first parameter of posix_memalign, we will have the address to write
-
-
-    // We use a new register in order to execute the mprotect
     struct user_regs_struct modified_regs_2;
     ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs_2);
 
-    long mprotect_address = function_offset(pid_char, "mprotect"); 
-    modified_regs_2.rax = mprotect_address;
+    printf("Value of rax after posix_memalign [%lld]\n", modified_regs_2.rax);
 
-    modified_regs_2.rdi = address_to_write;
-    modified_regs_2.rsi = cacheSize; 
-    modified_regs_2.rdx = PROT_EXEC | PROT_READ | PROT_WRITE;
+    long address_to_write = modified_regs_2.rdi; // In the first parameter of posix_memalign, we will have the address to write
+
+    // We use a new register in order to execute the mprotect
+    ptrace(PTRACE_GETREGS, tracee_pid, 0, &modified_regs);
+
+    long mprotect_address = function_offset(pid_char, "mprotect"); 
+    modified_regs.rax = mprotect_address;
+
+    modified_regs.rdi = modified_regs_2.rdi;
+    modified_regs.rsi = cacheSize; 
+    modified_regs.rdx = PROT_EXEC | PROT_READ | PROT_WRITE;
 
     // We can now set the register and relaunch the process
-    ptrace(PTRACE_SETREGS, tracee_pid, 0, &modified_regs_2);
+    ptrace(PTRACE_SETREGS, tracee_pid, 0, &modified_regs);
 
-    traced_process_mem = fopen(buffer, "r+");
-    if(traced_process_mem == NULL){
-        printf("Error: %s failed to open.\n", argv[1]);
-        exit(-1);
-    }
-
-    fseek_error = fseek(traced_process_mem, function_address, 0);
-    if(fseek_error != 0){
-        printf("Error: Fourth fseek failed with error %d.\n", fseek_error);
-        exit(-1);
-    } 
-
-    fwrite(indirect_call_instru, 1, 2, traced_process_mem);
-    fwrite(&trap_instru, 1, 1, traced_process_mem);
-
-    fclose(traced_process_mem);
-    traced_process_mem = NULL;
 
     ptrace(PTRACE_CONT, tracee_pid, NULL, NULL);
     waitpid(tracee_pid, &status, 0); 
 
-    printf("Value of rax after memprotect [%lld]\n", modified_regs_3.rax);
+    printf("Value of rax after memprotect [%lld]\n", modified_regs_2.rax);
 
     unsigned char inst[INST_NUMBER] = {INST};
 
@@ -197,11 +179,12 @@ int main(int argc, char *argv[]){
     // We write the instruction.
     fwrite(inst, 1, INST_NUMBER, traced_process_mem);
 
+    // We restore the previous instruction.
     function_address = function_offset(pid_char , argv[2]);
 
     fseek_error = fseek(traced_process_mem, function_address, 0);
     if(fseek_error != 0){
-        printf("Error: Fifth fseek failed with error %d.\n", fseek_error);
+        printf("Error: Fourth fseek failed with error %d.\n", fseek_error);
         exit(-1);
     } 
 
@@ -216,4 +199,4 @@ int main(int argc, char *argv[]){
     ptrace(PTRACE_DETACH, tracee_pid, NULL, NULL);
 
     return 0;
-    }   
+} 
